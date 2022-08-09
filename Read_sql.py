@@ -1,6 +1,7 @@
 import datetime
 import math
 import sys
+import time
 
 from sqlalchemy import create_engine
 import pandas as pd
@@ -373,11 +374,15 @@ FROM
 GROUP BY collection_time;
 """
 print("start read sql......")
+s1=time.clock()
 df1 = pd.read_sql_query(S1, engine)
+e1=time.clock()
 print("Finsh read \n start save csv.........")
-
+s2=time.clock()
 df1.to_csv('C:/Users/nameless/Desktop/S1.csv')
-
+e2=time.clock()
+print(e1-s1)
+print(e2-s2)
 # df2 = pd.read_sql_query(S2, engine)
 # df2.to_csv('C:/Users/nameless/Desktop/S2.csv')
 
