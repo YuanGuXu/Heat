@@ -175,6 +175,7 @@ class SCN(object):
     # Sigmoid function
     def activationFun(self,  X):
         H = expit(X@self.W + self.b)
+
         return H
 
     # RMSE
@@ -221,7 +222,11 @@ class SCN(object):
             else:
                 ErrorList = np.concatenate(
                     [np.array(ErrorList), np.matlib.repmat(Error, 1, self.nB)], axis=1)
+
         print('End Searching ...')
+        # print("W:",self.W)
+        # print("b:",self.b)
+        # print("Beta:",self.Beta)
         print('#L:{}\t RMSE:{:.4f} \r'.format(self.L, Error))
         print('***************************************')
         self.printProperties()

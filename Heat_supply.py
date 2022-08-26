@@ -1,4 +1,7 @@
+# -*- coding: utf-8 -*-
 import datetime
+
+
 import math
 import sys
 import numpy as np
@@ -228,8 +231,13 @@ FROM
     GROUP BY collection_time , dev_id) sn_xmly_CG ON sn_xmly_G.collection_time = sn_xmly_CG.collection_time
 GROUP BY collection_time;
 """
-
-
+import time
+def progress_bar(df):
+    import time
+    print("\r", end="")
+    print("Normalization progress: {}%: ".format(int(i / len(df) * 100)), "▋" * int(i / len(df) * 10), end="")
+    sys.stdout.flush()
+    time.sleep(0.05)
 
 def data_processing(df,col_name):
     #将温度按0.5℃划分
@@ -238,6 +246,7 @@ def data_processing(df,col_name):
     len_TP = (max_tp - min_tp + 1) * 2
     tab_temp = [round(float(min_tp + 0.5 * i), 2) for i in range(0, len_TP)]
     for j in range(len(df)):
+        print(j,"/",len(df))
         for t in range(len(tab_temp)):
             if tab_temp[t] <= df[col_name].iloc[j] < tab_temp[t + 1]:
                 df[col_name].iloc[j] = tab_temp[t]
@@ -250,26 +259,77 @@ def merg():
     df2['hour']=df2['hour'].astype('datetime64')
     df3=pd.read_csv('C:/Users/nameless/Desktop/S3.csv')
     df3['collection_time']=df3['collection_time'].astype('datetime64')
-
-
     df2=df2.groupby('hour').mean()
     df_new=pd.merge(df1,df2,left_on='time',right_on='hour',how='inner')
     df_final=pd.merge(df_new,df3,left_on='time',right_on='collection_time')
     df_final.dropna(axis=0,how='any')
-    df_final.to_csv('C:/Users/nameless/Desktop/final.csv')
-def get_data_scn():
-    file =pd.read_csv('C:/Users/nameless/Desktop/final.csv')
-    file = data_processing(file, 'C2_GS_T')
-    print("1")
-    file=data_processing(file, 'outdoor_temperature')
-    print("2")
-    file = data_processing(file, 'indoor_temperature_xmly_G')
-    print(file)
+    df_final.to_csv('C:/Users/nameless/Desktop/final_ALL.csv')
+def get_data_scn(location):
+    file =pd.read_csv('C:/Users/nameless/Desktop/final_ALL.csv',engine='python')
+    print("Original data length:",len(file))
+    file=file[(file['time']<'2022/3/30 23:00:00')]
+    print("Before 2022/3/30:",len(file))
+    file=file[file['S_side_Temp_{}'.format(location)]<50]
+    print("二次侧供水温度小于 50：",len(file))
+    # cols=['S_side_Temp_D','S_side_Temp_Z','S_side_Temp_G','S_side_Temp_QL','S_side_Temp_CG',
+    #       'S_side_flow_D','S_side_flow_Z','S_side_flow_G','S_side_flow_QL','S_side_flow_CG',
+    #       'outdoor_temperature','outdoor_lux','Inndoor_Temp_G','Inndoor_Temp_Z','Inndoor_Temp_D','Inndoor_Temp_CG']
+    # for col in cols:
+    #     print(col)
+    #     file = data_processing(file,col)
+    print("len_file")
+    print(len(file))
+    # file=normalization(file)
     X_signals = []
     Y_signals = []
+    Out_door_temp=[]
+    Out_door_lux=[]
+    # num = np.arange(len(file))
+    # np.random.shuffle(num)
     for i in range(0,len(file)):
-        X_signals.append([file['outdoor_temperature'].iloc[i],file['indoor_temperature_xmly_G'].iloc[i]])
-        Y_signals.append([file['C2_GS_T'].iloc[i]])
-    return X_signals,Y_signals
+        # X_signals.append([file['outdoor_temperature'].iloc[i],file['outdoor_lux'].iloc[i],file['Inndoor_Temp_{}'.format(location)].iloc[i],file['S_side_flow_{}'.format(location)].iloc[i]])
+        X_signals.append([file['outdoor_temperature'].iloc[i],file['Inndoor_Temp_{}'.format(location)].iloc[i],file['outdoor_lux'].iloc[i]])
+        Y_signals.append([file['S_side_Temp_{}'.format(location)].iloc[i]])
+        Out_door_temp.append(file['outdoor_temperature'].iloc[i])#用于画图时作为对照
+        Out_door_lux.append(file['outdoor_lux'].iloc[i])#用于画图时作为对照
+    X_signals=np.array(X_signals)
+    Y_signals=np.array(Y_signals)
+    X_axi=file['time'].astype('datetime64')
+    return X_signals,Y_signals,Out_door_temp,Out_door_lux,X_axi
+def normalization(df):#归一化
+    import time
+    # cols=df.columns.values
+    cols=['S_side_Temp_D','S_side_Temp_Z','S_side_Temp_G','S_side_Temp_CG','S_side_flow_D','S_side_flow_Z','S_side_flow_G','S_side_flow_CG','outdoor_temperature','outdoor_lux','Inndoor_Temp_G','Inndoor_Temp_Z','Inndoor_Temp_D','Inndoor_Temp_CG']
+    for i in range(len(df)):
+        # print('normalization:{}/{}'.format(i,len(df)))
+        print("\r", end="")
+        print("Normalization progress: {}%: ".format(int(i/len(df)*100)), "▋" * int(i/len(df)*10), end="")
+        sys.stdout.flush()
+        time.sleep(0.05)
+        for col in cols[2:]:
+            df[col].iloc[i]=(float(df[col].iloc[i])-float(df[col].min()))/(float(df[col].max())-float(df[col].min()))
+    print("\n Normalization is complete")
+    return df
 
-d,g=get_data_scn()
+def con_normalization(df):#反归一
+    cols=df.columns.values
+    for i in range(len(df)):
+        print('con_normalization:{}/{}'.format(i,len(df)))
+        for col in cols:
+            df[col].iloc[i]=(df[col].iloc[i]*(df[col].max()-df[col].min())+df[col].min())
+def get_data_from_tab(location):
+    file = pd.read_csv('C:/Users/nameless/Desktop/heat_file_025.csv', engine='python')
+    X_signals=[]
+    Y_signals=[]
+    x_axi=[]
+    for i in range(0,len(file)):
+        # X_signals.append([file['outdoor_temperature'].iloc[i],file['outdoor_lux'].iloc[i],file['Inndoor_Temp_{}'.format(location)].iloc[i],file['S_side_flow_{}'.format(location)].iloc[i]])
+        X_signals.append([file['outdoor_temperature'].iloc[i],file['Inndoor_Temp_{}'.format(location)].iloc[i],file['outdoor_lux'].iloc[i]])
+        Y_signals.append([file['S_side_Temp_{}'.format(location)].iloc[i]])
+        x_axi.append([file['outdoor_temperature'].iloc[i]])
+    X_signals=np.array(X_signals)
+    Y_signals=np.array(Y_signals)
+    return X_signals,Y_signals,x_axi
+# file =pd.read_csv('C:/Users/nameless/Desktop/final_lux.csv')
+# normalization(file)
+# merg()
